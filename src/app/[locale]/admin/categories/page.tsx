@@ -8,8 +8,7 @@ import Modal from '@/components/Modal';
 import { FiPlus, FiEdit, FiTrash2 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import Image from 'next/image';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+import { getApiBaseUrl } from '@/lib/apiBaseUrl';
 
 interface Category {
   _id: string;
@@ -114,7 +113,7 @@ export default function AdminCategoriesPage() {
                     <td className="p-4">
                       <div className="w-10 h-10 rounded-lg bg-input overflow-hidden">
                         {cat.image ? (
-                          <Image src={`${API_URL}${cat.image}`} alt={cat.name.en} width={40} height={40} className="object-cover w-full h-full" />
+                          <Image src={`${getApiBaseUrl()}${cat.image}`} alt={cat.name.en} width={40} height={40} className="object-cover w-full h-full" />
                         ) : <span className="flex items-center justify-center h-full">🍴</span>}
                       </div>
                     </td>

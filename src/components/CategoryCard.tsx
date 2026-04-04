@@ -4,8 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+import { getApiBaseUrl } from '@/lib/apiBaseUrl';
 
 interface CategoryCardProps {
   category: {
@@ -19,7 +18,7 @@ export default function CategoryCard({ category }: CategoryCardProps) {
   const params = useParams();
   const locale = (params?.locale as string) || 'en';
   const name = category.name[locale as keyof typeof category.name] || category.name.en;
-  const imageUrl = category.image ? `${API_URL}${category.image}` : '';
+  const imageUrl = category.image ? `${getApiBaseUrl()}${category.image}` : '';
 
   return (
     <motion.div

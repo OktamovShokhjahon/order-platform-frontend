@@ -1,11 +1,11 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+import { getApiBaseUrl } from '@/lib/apiBaseUrl';
 
 export const DEFAULT_FOOD_IMAGE = '/uploads/burger.png';
 
 export const resolveAssetUrl = (path?: string | null) => {
   if (!path) return '';
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
-  if (path.startsWith('/uploads/')) return `${API_URL}${path}`;
+  if (path.startsWith('/uploads/')) return `${getApiBaseUrl()}${path}`;
   return path;
 };
 
