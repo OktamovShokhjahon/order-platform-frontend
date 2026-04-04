@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: #f97316;
+  --color-primary-dark: #ea580c;
+  --color-primary-light: #fb923c;
+  --color-secondary: #1e293b;
+  --color-accent: #10b981;
+  --color-muted: #64748b;
+  --color-card: var(--card-bg);
+  --color-card-hover: var(--card-hover);
+  --color-border: var(--border-color);
+  --color-input: var(--input-bg);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --card-bg: #ffffff;
+  --card-hover: #f8fafc;
+  --border-color: #e2e8f0;
+  --input-bg: #f1f5f9;
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --card-bg: #1e293b;
+  --card-hover: #334155;
+  --border-color: #334155;
+  --input-bg: #1e293b;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-primary) transparent;
+}
