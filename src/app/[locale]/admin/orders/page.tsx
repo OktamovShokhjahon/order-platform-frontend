@@ -52,8 +52,64 @@ export default function AdminOrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('unsupported');
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const hasLoadedOnceRef = useRef(false);
+  const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
+    notificationAudioRef.current = new Audio('/notification_sound.mp3');
+    notificationAudioRef.current.preload = 'auto';
+    return () => {
+      notificationAudioRef.current = null;
+    };
+  }, []);
+
+  const unlockAudio = useCallback(async () => {
+    const audio = notificationAudioRef.current;
+    if (!audio) return false;
+    try {
+      audio.muted = true;
+      audio.currentTime = 0;
+      await audio.play();
+      audio.pause();
+      audio.currentTime = 0;
+      audio.muted = false;
+      setAudioUnlocked(true);
+      return true;
+    } catch {
+      audio.muted = false;
+      setAudioUnlocked(false);
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    const onFirstInteraction = () => {
+      void unlockAudio();
+    };
+    window.addEventListener('pointerdown', onFirstInteraction, { once: true });
+    window.addEventListener('keydown', onFirstInteraction, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', onFirstInteraction);
+      window.removeEventListener('keydown', onFirstInteraction);
+    };
+  }, [unlockAudio]);
+
+  const enableNotificationsAndSound = useCallback(async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+    }
+    const audioReady = await unlockAudio();
+    if (!audioReady) {
+      toast.error('Click anywhere on page to enable sound');
+    }
+  }, [unlockAudio]);
 
   const fetchOrders = useCallback(async (options?: { silent?: boolean; notifyOnNew?: boolean }) => {
     const { silent = false, notifyOnNew = false } = options || {};
@@ -79,11 +135,22 @@ export default function AdminOrdersPage() {
       if (notifyOnNew && hasLoadedOnceRef.current) {
         const newOrdersCount = nextOrders.filter((order: Order) => !knownOrderIdsRef.current.has(order._id)).length;
         if (newOrdersCount > 0) {
+          if (notificationPermission === 'granted') {
+            new Notification('New order', {
+              body: newOrdersCount === 1 ? 'A new order has been received.' : `${newOrdersCount} new orders have been received.`,
+            });
+          }
           toast.success(
             newOrdersCount === 1
               ? t('new_order_notification_single')
               : t('new_order_notification_many', { count: newOrdersCount })
           );
+          if (notificationAudioRef.current) {
+            notificationAudioRef.current.currentTime = 0;
+            void notificationAudioRef.current.play().catch(() => {
+              // Ignore autoplay/user-gesture restrictions.
+            });
+          }
         }
       }
       knownOrderIdsRef.current = nextIds;
@@ -93,7 +160,7 @@ export default function AdminOrdersPage() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [filter, page, search, t, tCommon]);
+  }, [filter, page, search, t, tCommon, notificationPermission]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -166,6 +233,20 @@ export default function AdminOrdersPage() {
           </select>
         </div>
       </div>
+      {(notificationPermission !== 'granted' || !audioUnlocked) && (
+        <div className="mb-4 rounded-xl border border-border bg-card p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <p className="text-sm text-muted">
+            Enable browser notifications and sound for new orders.
+          </p>
+          <button
+            type="button"
+            onClick={() => void enableNotificationsAndSound()}
+            className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark"
+          >
+            Enable notifications
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="animate-pulse space-y-3">
