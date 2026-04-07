@@ -27,6 +27,18 @@ interface Category {
   name: { uz: string; ru: string; en: string };
 }
 
+const isValidFood = (value: unknown): value is Food => {
+  if (!value || typeof value !== 'object') return false;
+  const food = value as Partial<Food>;
+  return typeof food._id === 'string' && Boolean(food.name) && typeof food.price === 'number';
+};
+
+const isValidCategory = (value: unknown): value is Category => {
+  if (!value || typeof value !== 'object') return false;
+  const category = value as Partial<Category>;
+  return typeof category._id === 'string' && Boolean(category.name);
+};
+
 const getFoodImages = (food: Pick<Food, 'image' | 'images'>) => {
   if (Array.isArray(food.images) && food.images.length > 0) {
     return food.images.filter(Boolean);
@@ -64,12 +76,36 @@ export default function AdminFoodsPage() {
   }, [selectedImagePreviews]);
 
   const fetchFoods = () => {
-    foodsAPI.getAll({ limit: '100' }).then((res) => { setFoods(res.data.foods); setLoading(false); });
+    foodsAPI.getAll({ limit: '100' })
+      .then((res) => {
+        const payload = res?.data && typeof res.data === 'object' ? res.data : null;
+        const foodsList = Array.isArray(payload?.foods) ? payload.foods.filter(isValidFood) : null;
+        if (!foodsList) {
+          toast.error('Something bad happened');
+          return;
+        }
+        setFoods(foodsList);
+      })
+      .catch(() => {
+        toast.error('Something bad happened');
+      })
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     fetchFoods();
-    categoriesAPI.getAll().then((res) => setCategories(res.data));
+    categoriesAPI.getAll()
+      .then((res) => {
+        const categoryList = Array.isArray(res?.data) ? res.data.filter(isValidCategory) : null;
+        if (!categoryList) {
+          toast.error('Something bad happened');
+          return;
+        }
+        setCategories(categoryList);
+      })
+      .catch(() => {
+        toast.error('Something bad happened');
+      });
   }, []);
 
   const openCreate = () => {

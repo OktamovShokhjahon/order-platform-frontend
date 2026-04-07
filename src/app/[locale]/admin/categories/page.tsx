@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { categoriesAPI } from '@/lib/api';
+import { categoriesAPI, foodsAPI } from '@/lib/api';
 import Modal from '@/components/Modal';
 import { FiPlus, FiEdit, FiTrash2 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
@@ -15,6 +15,12 @@ interface Category {
   name: { uz: string; ru: string; en: string };
   image: string;
 }
+
+const isValidCategory = (value: unknown): value is Category => {
+  if (!value || typeof value !== 'object') return false;
+  const category = value as Partial<Category>;
+  return typeof category._id === 'string' && Boolean(category.name) && typeof category.image === 'string';
+};
 
 export default function AdminCategoriesPage() {
   const t = useTranslations('admin');
@@ -30,7 +36,19 @@ export default function AdminCategoriesPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
 
   const fetchCategories = () => {
-    categoriesAPI.getAll().then((res) => { setCategories(res.data); setLoading(false); });
+    categoriesAPI.getAll()
+      .then((res) => {
+        const categoryList = Array.isArray(res?.data) ? res.data.filter(isValidCategory) : null;
+        if (!categoryList) {
+          toast.error('Something bad happened');
+          return;
+        }
+        setCategories(categoryList);
+      })
+      .catch(() => {
+        toast.error('Something bad happened');
+      })
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchCategories(); }, []);
@@ -73,11 +91,24 @@ export default function AdminCategoriesPage() {
   const handleDelete = async (id: string) => {
     if (!confirm(t('confirm_delete'))) return;
     try {
+      const foodsRes = await foodsAPI.getAll({ category: id, limit: '1000' });
+      const foodsPayload = foodsRes?.data && typeof foodsRes.data === 'object' ? foodsRes.data : null;
+      const foods: unknown[] | null = Array.isArray(foodsPayload?.foods) ? foodsPayload.foods : null;
+      if (!foods) {
+        toast.error('Something bad happened');
+        return;
+      }
+      await Promise.all(
+        foods
+          .map((food: unknown) => (food && typeof food === 'object' ? (food as { _id?: string })._id : undefined))
+          .filter((foodId): foodId is string => typeof foodId === 'string')
+          .map((foodId) => foodsAPI.delete(foodId))
+      );
       await categoriesAPI.delete(id);
       toast.success('Category deleted');
       fetchCategories();
     } catch {
-      toast.error(tCommon('error'));
+      toast.error('Something bad happened');
     }
   };
 

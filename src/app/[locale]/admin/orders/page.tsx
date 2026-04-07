@@ -21,6 +21,22 @@ interface Order {
 
 const STATUS_OPTIONS = ['pending', 'preparing', 'delivering', 'delivered', 'cancelled'];
 
+const BAD_RESPONSE_MESSAGE = 'Something bad happened';
+
+const isValidOrder = (value: unknown): value is Order => {
+  if (!value || typeof value !== 'object') return false;
+  const order = value as Partial<Order>;
+  return (
+    typeof order._id === 'string' &&
+    typeof order.customerName === 'string' &&
+    typeof order.customerPhone === 'string' &&
+    typeof order.totalPrice === 'number' &&
+    typeof order.status === 'string' &&
+    typeof order.paymentStatus === 'string' &&
+    typeof order.createdAt === 'string'
+  );
+};
+
 export default function AdminOrdersPage() {
   const t = useTranslations('admin');
   const tCommon = useTranslations('common');
@@ -47,13 +63,21 @@ export default function AdminOrdersPage() {
     if (search.trim()) params.search = search.trim();
     try {
       const res = await ordersAPI.getAll(params);
-      const nextOrders: Order[] = res.data.orders || [];
+      const payload = res?.data && typeof res.data === 'object' ? res.data : null;
+      const rawOrders: unknown[] | null = Array.isArray(payload?.orders) ? payload.orders : null;
+      const nextOrders: Order[] | null = rawOrders ? rawOrders.filter(isValidOrder) : null;
+      const nextPages = typeof payload?.pages === 'number' ? payload.pages : null;
+      const nextTotal = typeof payload?.total === 'number' ? payload.total : null;
+      if (!nextOrders || nextPages === null || nextTotal === null) {
+        toast.error(BAD_RESPONSE_MESSAGE);
+        return;
+      }
       setOrders(nextOrders);
-      setPages(res.data.pages || 1);
-      setTotal(res.data.total || 0);
-      const nextIds = new Set(nextOrders.map((order) => order._id));
+      setPages(nextPages);
+      setTotal(nextTotal);
+      const nextIds = new Set(nextOrders.map((order: Order) => order._id));
       if (notifyOnNew && hasLoadedOnceRef.current) {
-        const newOrdersCount = nextOrders.filter((order) => !knownOrderIdsRef.current.has(order._id)).length;
+        const newOrdersCount = nextOrders.filter((order: Order) => !knownOrderIdsRef.current.has(order._id)).length;
         if (newOrdersCount > 0) {
           toast.success(
             newOrdersCount === 1
@@ -65,7 +89,7 @@ export default function AdminOrdersPage() {
       knownOrderIdsRef.current = nextIds;
       hasLoadedOnceRef.current = true;
     } catch {
-      toast.error(tCommon('error'));
+      toast.error(BAD_RESPONSE_MESSAGE);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -98,9 +122,14 @@ export default function AdminOrdersPage() {
     setDetailsLoading(true);
     try {
       const res = await ordersAPI.getById(id);
+      if (!isValidOrder(res?.data)) {
+        toast.error(BAD_RESPONSE_MESSAGE);
+        setDetailsOpen(false);
+        return;
+      }
       setSelectedOrder(res.data);
     } catch {
-      toast.error(tCommon('error'));
+      toast.error(BAD_RESPONSE_MESSAGE);
       setDetailsOpen(false);
     } finally {
       setDetailsLoading(false);

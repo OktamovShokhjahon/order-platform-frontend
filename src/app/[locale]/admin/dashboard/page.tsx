@@ -51,6 +51,12 @@ interface StatisticsPayload {
   }[];
 }
 
+interface ChartSeriesRow {
+  label: string;
+  revenue: number;
+  orders: number;
+}
+
 function formatYMD(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -73,6 +79,7 @@ export default function AdminDashboard() {
   const [rangeTo, setRangeTo] = useState(() => formatYMD(new Date()));
   const [chartMetric, setChartMetric] = useState<'revenue' | 'orders'>('revenue');
   const [data, setData] = useState<StatisticsPayload | null>(null);
+  const [paidChartSeries, setPaidChartSeries] = useState<ChartSeriesRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -82,6 +89,12 @@ export default function AdminDashboard() {
     const q: Record<string, string> = {
       period,
       locale,
+      paymentStatus: 'paid',
+      payment: 'paid',
+      status: 'delivered',
+      orderStatus: 'delivered',
+      paidOnly: 'true',
+      deliveredOnly: 'true',
     };
     if (period === 'range') {
       q.from = rangeFrom;
@@ -90,8 +103,21 @@ export default function AdminDashboard() {
     try {
       const res = await adminAPI.getStatistics(q);
       setData(res.data);
+
+      // Chart data also comes from paid-filtered payload.
+      const paidRes = await adminAPI.getStatistics(q);
+      const chart = Array.isArray(paidRes?.data?.chartSeries) ? paidRes.data.chartSeries : [];
+      const normalized: ChartSeriesRow[] = chart
+        .filter((row: unknown) => row && typeof row === 'object')
+        .map((row: { label?: unknown; revenue?: unknown; orders?: unknown }) => ({
+          label: typeof row.label === 'string' ? row.label : '-',
+          revenue: typeof row.revenue === 'number' ? row.revenue : 0,
+          orders: typeof row.orders === 'number' ? row.orders : 0,
+        }));
+      setPaidChartSeries(normalized);
     } catch (err) {
       setData(null);
+      setPaidChartSeries([]);
       let msg = 'Request failed';
       if (axios.isAxiosError(err)) {
         const d = err.response?.data;
@@ -114,12 +140,12 @@ export default function AdminDashboard() {
   }, [fetchStats]);
 
   const chartMax = useMemo(() => {
-    if (!data?.chartSeries.length) return 1;
-    const vals = data.chartSeries.map((s) =>
+    if (!paidChartSeries.length) return 1;
+    const vals = paidChartSeries.map((s) =>
       chartMetric === 'revenue' ? s.revenue : s.orders
     );
     return Math.max(...vals, 1);
-  }, [data, chartMetric]);
+  }, [paidChartSeries, chartMetric]);
 
   const exportExcel = () => {
     if (!data) return;
@@ -383,16 +409,16 @@ export default function AdminDashboard() {
             </select>
           </div>
         </div>
-        {data.chartSeries.length > 0 ? (
+        {paidChartSeries.length > 0 ? (
           <div className="w-full overflow-x-auto pb-1">
             <div
               className="flex items-stretch gap-2 sm:gap-3"
               style={{
                 minWidth:
-                  data.chartSeries.length > 10 ? `${Math.max(data.chartSeries.length * 2.75, 100)}%` : undefined,
+                  paidChartSeries.length > 10 ? `${Math.max(paidChartSeries.length * 2.75, 100)}%` : undefined,
               }}
             >
-              {data.chartSeries.map((row) => {
+              {paidChartSeries.map((row) => {
                 const raw = chartMetric === 'revenue' ? row.revenue : row.orders;
                 const n = Number(raw);
                 const barPct =
