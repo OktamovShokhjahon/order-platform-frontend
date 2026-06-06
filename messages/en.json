@@ -235,7 +235,15 @@
     "stats_food_name": "Food",
     "stats_no_sales": "No orders in this range (or nothing sold yet).",
     "stats_period_column": "Period",
-    "stats_recent_in_range": "Latest orders in this range (up to 10, excluding cancelled)."
+    "stats_recent_in_range": "Latest orders in this range (up to 10, excluding cancelled).",
+    "stats_avg_order_value": "Avg. order value",
+    "stats_all_time": "All-time overview",
+    "stats_all_time_hint": "Lifetime totals across the whole store, independent of the selected period.",
+    "stats_paid_revenue": "Paid revenue",
+    "stats_all_time_orders": "Total orders",
+    "stats_selected_period": "Selected period",
+    "paid": "Paid",
+    "unpaid": "Unpaid"
   },
   "common": {
     "loading": "Loading...",

@@ -16,13 +16,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const locale = (params?.locale as string) || 'en';
-  const user = useSelector((state: RootState) => state.auth.user);
+  const { user, initialized } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {
-    if (user && user.role !== 'admin') {
+    if (initialized && user && user.role !== 'admin') {
       router.push(`/${locale}`);
     }
-  }, [user, locale, router]);
+  }, [initialized, user, locale, router]);
+
+  if (!initialized) {
+    return null;
+  }
 
   if (!user) {
     return (
@@ -30,7 +34,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <LocaleThemeControls />
         <div className="text-center">
           <p className="text-muted mb-4">{t('login_as_admin_prompt')}</p>
-          <Link href={`/${locale}/auth`} className="text-primary hover:underline">
+          <Link
+            href={`/${locale}/auth?next=/${locale}/admin/dashboard`}
+            className="text-primary hover:underline"
+          >
             {tNav('login')}
           </Link>
         </div>

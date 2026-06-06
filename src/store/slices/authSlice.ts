@@ -14,6 +14,7 @@ interface AuthState {
   token: string | null;
   loading: boolean;
   error: string | null;
+  initialized: boolean;
 }
 
 const initialState: AuthState = {
@@ -21,6 +22,7 @@ const initialState: AuthState = {
   token: null,
   loading: false,
   error: null,
+  initialized: false,
 };
 
 export const login = createAsyncThunk(
@@ -70,6 +72,24 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
+    hydrateFromStorage(state) {
+      if (typeof window === 'undefined') return;
+      const token = localStorage.getItem('token');
+      const userJson = localStorage.getItem('user');
+      if (!token || !userJson) {
+        state.initialized = true;
+        return;
+      }
+      try {
+        state.token = token;
+        state.user = JSON.parse(userJson) as User;
+        state.initialized = true;
+      } catch {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        state.initialized = true;
+      }
+    },
     logout(state) {
       state.user = null;
       state.token = null;
@@ -86,6 +106,7 @@ const authSlice = createSlice({
       .addCase(login.pending, (state) => { state.loading = true; state.error = null; })
       .addCase(login.fulfilled, (state, action) => {
         state.loading = false;
+        state.initialized = true;
         state.user = action.payload.user;
         state.token = action.payload.token;
       })
@@ -96,6 +117,7 @@ const authSlice = createSlice({
       .addCase(register.pending, (state) => { state.loading = true; state.error = null; })
       .addCase(register.fulfilled, (state, action) => {
         state.loading = false;
+        state.initialized = true;
         state.user = action.payload.user;
         state.token = action.payload.token;
       })
@@ -103,16 +125,24 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
+      .addCase(loadUser.pending, (state) => {
+        if (!state.user) state.loading = true;
+      })
       .addCase(loadUser.fulfilled, (state, action) => {
+        state.loading = false;
+        state.initialized = true;
         state.user = action.payload.user;
         state.token = action.payload.token;
+        localStorage.setItem('user', JSON.stringify(action.payload.user));
       })
       .addCase(loadUser.rejected, (state) => {
+        state.loading = false;
+        state.initialized = true;
         state.user = null;
         state.token = null;
       });
   },
 });
 
-export const { logout, clearError } = authSlice.actions;
+export const { hydrateFromStorage, logout, clearError } = authSlice.actions;
 export default authSlice.reducer;

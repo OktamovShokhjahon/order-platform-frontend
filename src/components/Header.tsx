@@ -80,10 +80,10 @@ export default function Header() {
 
             {user ? (
               <div className="hidden md:flex items-center gap-2">
-                <Link href={`/${locale}/auth`} className="flex items-center gap-1 text-sm text-muted hover:text-foreground">
+                <span className="flex items-center gap-1 text-sm text-muted">
                   <FiUser size={16} />
                   <span className="max-w-[80px] truncate">{user.name}</span>
-                </Link>
+                </span>
                 <button
                   onClick={() => dispatch(logout())}
                   className="p-2 rounded-lg hover:bg-input transition-colors text-muted hover:text-red-500"

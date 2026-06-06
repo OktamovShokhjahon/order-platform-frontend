@@ -235,7 +235,15 @@
     "stats_food_name": "Taom",
     "stats_no_sales": "Bu oralig'da buyurtma yo'q yoki hali sotuv bo'lmagan.",
     "stats_period_column": "Davr",
-    "stats_recent_in_range": "Bu oralig'dagi oxirgi buyurtmalar (10 tagacha, bekor qilinganlar emas)."
+    "stats_recent_in_range": "Bu oralig'dagi oxirgi buyurtmalar (10 tagacha, bekor qilinganlar emas).",
+    "stats_avg_order_value": "O'rtacha buyurtma",
+    "stats_all_time": "Umumiy ko'rsatkichlar",
+    "stats_all_time_hint": "Tanlangan davrdan qat'i nazar, butun do'kon bo'yicha umumiy natijalar.",
+    "stats_paid_revenue": "To'langan daromad",
+    "stats_all_time_orders": "Jami buyurtmalar",
+    "stats_selected_period": "Tanlangan davr",
+    "paid": "To'langan",
+    "unpaid": "To'lanmagan"
   },
   "common": {
     "loading": "Yuklanmoqda...",

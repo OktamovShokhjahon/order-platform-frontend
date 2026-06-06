@@ -235,7 +235,15 @@
     "stats_food_name": "Блюдо",
     "stats_no_sales": "Нет заказов в этом диапазоне или продаж ещё не было.",
     "stats_period_column": "Период",
-    "stats_recent_in_range": "Последние заказы в диапазоне (до 10, без отменённых)."
+    "stats_recent_in_range": "Последние заказы в диапазоне (до 10, без отменённых).",
+    "stats_avg_order_value": "Средний чек",
+    "stats_all_time": "Сводка за всё время",
+    "stats_all_time_hint": "Итоги по всему магазину за всё время, независимо от выбранного периода.",
+    "stats_paid_revenue": "Оплаченная выручка",
+    "stats_all_time_orders": "Всего заказов",
+    "stats_selected_period": "Выбранный период",
+    "paid": "Оплачен",
+    "unpaid": "Не оплачен"
   },
   "common": {
     "loading": "Загрузка...",

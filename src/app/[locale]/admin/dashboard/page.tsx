@@ -11,6 +11,7 @@ import {
   FiCalendar,
   FiDownload,
   FiDollarSign,
+  FiFolder,
   FiPackage,
   FiShoppingCart,
   FiTrendingDown,
@@ -20,6 +21,15 @@ import {
 import * as XLSX from 'xlsx';
 
 type Period = 'daily' | 'weekly' | 'monthly' | 'range';
+
+interface RecentOrder {
+  _id: string;
+  customerName: string;
+  totalPrice: number;
+  status: string;
+  paymentStatus?: string;
+  createdAt: string;
+}
 
 interface StatisticsPayload {
   period: Period;
@@ -42,19 +52,16 @@ interface StatisticsPayload {
   }[];
   topFood: { name: string; quantitySold: number; revenue: number } | null;
   lowestFood: { name: string; quantitySold: number; revenue: number } | null;
-  recentOrders: {
-    _id: string;
-    customerName: string;
-    totalPrice: number;
-    status: string;
-    createdAt: string;
-  }[];
+  recentOrders: RecentOrder[];
 }
 
-interface ChartSeriesRow {
-  label: string;
-  revenue: number;
-  orders: number;
+interface DashboardPayload {
+  totalOrders: number;
+  totalRevenue: number;
+  todayOrders: number;
+  totalUsers: number;
+  totalFoods: number;
+  totalCategories: number;
 }
 
 function formatYMD(d: Date): string {
@@ -79,45 +86,28 @@ export default function AdminDashboard() {
   const [rangeTo, setRangeTo] = useState(() => formatYMD(new Date()));
   const [chartMetric, setChartMetric] = useState<'revenue' | 'orders'>('revenue');
   const [data, setData] = useState<StatisticsPayload | null>(null);
-  const [paidChartSeries, setPaidChartSeries] = useState<ChartSeriesRow[]>([]);
+  const [overview, setOverview] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchStats = useCallback(async () => {
     setLoading(true);
     setFetchError(null);
-    const q: Record<string, string> = {
-      period,
-      locale,
-      paymentStatus: 'paid',
-      payment: 'paid',
-      status: 'delivered',
-      orderStatus: 'delivered',
-      paidOnly: 'true',
-      deliveredOnly: 'true',
-    };
+    const q: Record<string, string> = { period, locale };
     if (period === 'range') {
       q.from = rangeFrom;
       q.to = rangeTo;
     }
     try {
-      const res = await adminAPI.getStatistics(q);
-      setData(res.data);
-
-      // Chart data also comes from paid-filtered payload.
-      const paidRes = await adminAPI.getStatistics(q);
-      const chart = Array.isArray(paidRes?.data?.chartSeries) ? paidRes.data.chartSeries : [];
-      const normalized: ChartSeriesRow[] = chart
-        .filter((row: unknown) => row && typeof row === 'object')
-        .map((row: { label?: unknown; revenue?: unknown; orders?: unknown }) => ({
-          label: typeof row.label === 'string' ? row.label : '-',
-          revenue: typeof row.revenue === 'number' ? row.revenue : 0,
-          orders: typeof row.orders === 'number' ? row.orders : 0,
-        }));
-      setPaidChartSeries(normalized);
+      const [statsRes, overviewRes] = await Promise.all([
+        adminAPI.getStatistics(q),
+        adminAPI.getDashboard(),
+      ]);
+      setData(statsRes.data);
+      setOverview(overviewRes.data);
     } catch (err) {
       setData(null);
-      setPaidChartSeries([]);
+      setOverview(null);
       let msg = 'Request failed';
       if (axios.isAxiosError(err)) {
         const d = err.response?.data;
@@ -139,13 +129,18 @@ export default function AdminDashboard() {
     fetchStats();
   }, [fetchStats]);
 
+  const chartSeries = data?.chartSeries ?? [];
+
   const chartMax = useMemo(() => {
-    if (!paidChartSeries.length) return 1;
-    const vals = paidChartSeries.map((s) =>
-      chartMetric === 'revenue' ? s.revenue : s.orders
-    );
+    if (!chartSeries.length) return 1;
+    const vals = chartSeries.map((s) => (chartMetric === 'revenue' ? s.revenue : s.orders));
     return Math.max(...vals, 1);
-  }, [paidChartSeries, chartMetric]);
+  }, [chartSeries, chartMetric]);
+
+  const avgOrderValue =
+    data && data.summary.totalOrders > 0
+      ? Math.round(data.summary.totalRevenue / data.summary.totalOrders)
+      : 0;
 
   const exportExcel = () => {
     if (!data) return;
@@ -159,11 +154,21 @@ export default function AdminDashboard() {
       [],
       [t('total_orders'), data.summary.totalOrders],
       [t('total_revenue'), data.summary.totalRevenue],
+      [t('stats_avg_order_value'), avgOrderValue],
       [t('stats_total_items_sold'), data.summary.totalItemsSold],
       [t('total_users'), data.summary.totalUsers],
       [t('stats_foods_count'), data.summary.totalFoods],
       [t('stats_categories_count'), data.summary.totalCategories],
     ];
+    if (overview) {
+      summaryAoA.push(
+        [],
+        [t('stats_all_time')],
+        [t('stats_paid_revenue'), overview.totalRevenue],
+        [t('stats_all_time_orders'), overview.totalOrders],
+        [t('today_orders'), overview.todayOrders]
+      );
+    }
     if (data.topFood) {
       summaryAoA.push(
         [],
@@ -237,23 +242,64 @@ export default function AdminDashboard() {
     },
     {
       label: t('total_orders'),
-      value: String(data.summary.totalOrders),
+      value: data.summary.totalOrders.toLocaleString(),
       icon: FiShoppingCart,
       color: 'text-blue-500 bg-blue-500/10',
     },
     {
+      label: t('stats_avg_order_value'),
+      value: `${avgOrderValue.toLocaleString()} ${tCommon('sum')}`,
+      icon: FiTrendingUp,
+      color: 'text-teal-500 bg-teal-500/10',
+    },
+    {
       label: t('stats_total_items_sold'),
-      value: String(data.summary.totalItemsSold),
+      value: data.summary.totalItemsSold.toLocaleString(),
       icon: FiPackage,
       color: 'text-orange-500 bg-orange-500/10',
     },
-    {
-      label: t('total_users'),
-      value: String(data.summary.totalUsers),
-      icon: FiUsers,
-      color: 'text-purple-500 bg-purple-500/10',
-    },
   ];
+
+  const overviewStats = overview
+    ? [
+        {
+          label: t('stats_paid_revenue'),
+          value: `${overview.totalRevenue.toLocaleString()} ${tCommon('sum')}`,
+          icon: FiDollarSign,
+          color: 'text-green-500 bg-green-500/10',
+        },
+        {
+          label: t('stats_all_time_orders'),
+          value: overview.totalOrders.toLocaleString(),
+          icon: FiShoppingCart,
+          color: 'text-blue-500 bg-blue-500/10',
+        },
+        {
+          label: t('today_orders'),
+          value: overview.todayOrders.toLocaleString(),
+          icon: FiCalendar,
+          color: 'text-pink-500 bg-pink-500/10',
+        },
+        {
+          label: t('total_users'),
+          value: overview.totalUsers.toLocaleString(),
+          icon: FiUsers,
+          color: 'text-purple-500 bg-purple-500/10',
+        },
+        {
+          label: t('stats_foods_count'),
+          value: overview.totalFoods.toLocaleString(),
+          icon: FiPackage,
+          color: 'text-orange-500 bg-orange-500/10',
+        },
+        {
+          label: t('stats_categories_count'),
+          value: overview.totalCategories.toLocaleString(),
+          icon: FiFolder,
+          color: 'text-indigo-500 bg-indigo-500/10',
+        },
+      ]
+    : [];
 
   return (
     <div className="space-y-6">
@@ -330,28 +376,68 @@ export default function AdminDashboard() {
         </p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, index) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
-            className="bg-card border border-border rounded-xl p-5"
-          >
-            <div className="flex items-center gap-3">
-              <div className={`p-3 rounded-xl ${stat.color}`}>
-                <stat.icon size={20} />
+      {/* Period Stats Cards */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <FiBarChart2 size={16} className="text-muted" />
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
+            {t('stats_selected_period')}
+          </h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {stats.map((stat, index) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+              className="bg-card border border-border rounded-xl p-5"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-3 rounded-xl ${stat.color}`}>
+                  <stat.icon size={20} />
+                </div>
+                <div>
+                  <p className="text-sm text-muted">{stat.label}</p>
+                  <p className="text-xl font-bold text-foreground">{stat.value}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted">{stat.label}</p>
-                <p className="text-xl font-bold text-foreground">{stat.value}</p>
-              </div>
-            </div>
-          </motion.div>
-        ))}
+            </motion.div>
+          ))}
+        </div>
       </div>
+
+      {/* All-time Overview */}
+      {overviewStats.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <FiUsers size={16} className="text-muted" />
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
+                {t('stats_all_time')}
+              </h2>
+            </div>
+            <p className="text-xs text-muted">{t('stats_all_time_hint')}</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            {overviewStats.map((stat, index) => (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.04 }}
+                className="bg-card border border-border rounded-xl p-4"
+              >
+                <div className={`mb-2 inline-flex p-2.5 rounded-xl ${stat.color}`}>
+                  <stat.icon size={18} />
+                </div>
+                <p className="text-xs text-muted leading-tight">{stat.label}</p>
+                <p className="text-lg font-bold text-foreground tabular-nums">{stat.value}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-card border border-border rounded-xl p-5">
@@ -409,16 +495,16 @@ export default function AdminDashboard() {
             </select>
           </div>
         </div>
-        {paidChartSeries.length > 0 ? (
+        {chartSeries.length > 0 ? (
           <div className="w-full overflow-x-auto pb-1">
             <div
               className="flex items-stretch gap-2 sm:gap-3"
               style={{
                 minWidth:
-                  paidChartSeries.length > 10 ? `${Math.max(paidChartSeries.length * 2.75, 100)}%` : undefined,
+                  chartSeries.length > 10 ? `${Math.max(chartSeries.length * 2.75, 100)}%` : undefined,
               }}
             >
-              {paidChartSeries.map((row) => {
+              {chartSeries.map((row) => {
                 const raw = chartMetric === 'revenue' ? row.revenue : row.orders;
                 const n = Number(raw);
                 const barPct =
@@ -505,22 +591,27 @@ export default function AdminDashboard() {
                 <th className="pb-3 font-medium">{t('name')}</th>
                 <th className="pb-3 font-medium">{t('total_revenue')}</th>
                 <th className="pb-3 font-medium">{t('order_status')}</th>
+                <th className="pb-3 font-medium">{t('payment_status')}</th>
                 <th className="pb-3 font-medium">Date</th>
               </tr>
             </thead>
             <tbody>
               {data.recentOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-muted text-sm">
+                  <td colSpan={6} className="py-6 text-center text-muted text-sm">
                     {t('no_data')}
                   </td>
                 </tr>
               ) : (
-                data.recentOrders.map((order) => (
+                data.recentOrders.map((order) => {
+                  const isPaid = order.paymentStatus === 'paid';
+                  return (
                 <tr key={order._id} className="border-b border-border/50">
                   <td className="py-3 font-mono text-xs">{order._id.slice(-6)}</td>
                   <td className="py-3">{order.customerName}</td>
-                  <td className="py-3 font-medium">{order.totalPrice.toLocaleString()}</td>
+                  <td className="py-3 font-medium">
+                    {order.totalPrice.toLocaleString()} {tCommon('sum')}
+                  </td>
                   <td className="py-3">
                     <span
                       className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -538,9 +629,19 @@ export default function AdminDashboard() {
                       {order.status}
                     </span>
                   </td>
+                  <td className="py-3">
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        isPaid ? 'bg-green-500/10 text-green-500' : 'bg-amber-500/10 text-amber-500'
+                      }`}
+                    >
+                      {isPaid ? t('paid') : t('unpaid')}
+                    </span>
+                  </td>
                   <td className="py-3 text-muted">{new Date(order.createdAt).toLocaleDateString()}</td>
                 </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
